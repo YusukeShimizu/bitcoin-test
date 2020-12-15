@@ -171,8 +171,7 @@ class Point:
 
     def __add__(self, other):
         if self.a != other.a or self.b != other.b:
-            raise TypeError(
-                'Points {}, {} are not on the same curve'.format(self, other))
+            raise TypeError('Points {}, {} are not on the same curve'.format(self, other))
         # Case 0.0: self is the point at infinity, return other
         if self.x is None:
             return other
@@ -470,14 +469,10 @@ class S256Test(TestCase):
         # write a test that tests the public point for the following
         points = (
             # secret, x, y
-            (7, 0x5cbdf0646e5db4eaa398f365f2ea7a0e3d419b7e0330e39ce92bddedcac4f9bc,
-             0x6aebca40ba255960a3178d6d861a54dba813d0b813fde7b5a5082628087264da),
-            (1485, 0xc982196a7466fbbbb0e27a940b6af926c1a74d5ad07128c82824a11b5398afda,
-             0x7a91f9eae64438afb9ce6448a1c133db2d8fb9254e4546b6f001637d50901f55),
-            (2**128, 0x8f68b9d2f63b5f339239c1ad981f162ee88c5678723ea3351b7b444c9ec4c0da,
-             0x662a9f2dba063986de1d90c2b6be215dbbea2cfe95510bfdf23cbf79501fff82),
-            (2**240 + 2**31, 0x9577ff57c8234558f293df502ca4f09cbc65a6572c842b39b366f21717945116,
-             0x10b49c67fa9365ad7b90dab070be339a1daf9052373ec30ffae4f72d5e66d053),
+            (7, 0x5cbdf0646e5db4eaa398f365f2ea7a0e3d419b7e0330e39ce92bddedcac4f9bc, 0x6aebca40ba255960a3178d6d861a54dba813d0b813fde7b5a5082628087264da),
+            (1485, 0xc982196a7466fbbbb0e27a940b6af926c1a74d5ad07128c82824a11b5398afda, 0x7a91f9eae64438afb9ce6448a1c133db2d8fb9254e4546b6f001637d50901f55),
+            (2**128, 0x8f68b9d2f63b5f339239c1ad981f162ee88c5678723ea3351b7b444c9ec4c0da, 0x662a9f2dba063986de1d90c2b6be215dbbea2cfe95510bfdf23cbf79501fff82),
+            (2**240 + 2**31, 0x9577ff57c8234558f293df502ca4f09cbc65a6572c842b39b366f21717945116, 0x10b49c67fa9365ad7b90dab070be339a1daf9052373ec30ffae4f72d5e66d053),
         )
 
         # iterate over points
@@ -505,22 +500,19 @@ class S256Test(TestCase):
         uncompressed = '049d5ca49670cbe4c3bfa84c96a8c87df086c6ea6a24ba6b809c9de234496808d56fa15cc7f3d38cda98dee2419f415b7513dde1301f8643cd9245aea7f3f911f9'
         compressed = '039d5ca49670cbe4c3bfa84c96a8c87df086c6ea6a24ba6b809c9de234496808d5'
         point = coefficient * G
-        self.assertEqual(point.sec(compressed=False),
-                         bytes.fromhex(uncompressed))
+        self.assertEqual(point.sec(compressed=False), bytes.fromhex(uncompressed))
         self.assertEqual(point.sec(compressed=True), bytes.fromhex(compressed))
         coefficient = 123
         uncompressed = '04a598a8030da6d86c6bc7f2f5144ea549d28211ea58faa70ebf4c1e665c1fe9b5204b5d6f84822c307e4b4a7140737aec23fc63b65b35f86a10026dbd2d864e6b'
         compressed = '03a598a8030da6d86c6bc7f2f5144ea549d28211ea58faa70ebf4c1e665c1fe9b5'
         point = coefficient * G
-        self.assertEqual(point.sec(compressed=False),
-                         bytes.fromhex(uncompressed))
+        self.assertEqual(point.sec(compressed=False), bytes.fromhex(uncompressed))
         self.assertEqual(point.sec(compressed=True), bytes.fromhex(compressed))
         coefficient = 42424242
         uncompressed = '04aee2e7d843f7430097859e2bc603abcc3274ff8169c1a469fee0f20614066f8e21ec53f40efac47ac1c5211b2123527e0e9b57ede790c4da1e72c91fb7da54a3'
         compressed = '03aee2e7d843f7430097859e2bc603abcc3274ff8169c1a469fee0f20614066f8e'
         point = coefficient * G
-        self.assertEqual(point.sec(compressed=False),
-                         bytes.fromhex(uncompressed))
+        self.assertEqual(point.sec(compressed=False), bytes.fromhex(uncompressed))
         self.assertEqual(point.sec(compressed=True), bytes.fromhex(compressed))
 
     def test_address(self):
@@ -691,11 +683,9 @@ class PrivateKeyTest(TestCase):
         pk = PrivateKey(2**256 - 2**201)
         expected = '93XfLeifX7Jx7n7ELGMAf1SUR6f9kgQs8Xke8WStMwUtrDucMzn'
         self.assertEqual(pk.wif(compressed=False, testnet=True), expected)
-        pk = PrivateKey(
-            0x0dba685b4511dbd3d368e5c4358a1277de9486447af7b3604a69b8d9d8b7889d)
+        pk = PrivateKey(0x0dba685b4511dbd3d368e5c4358a1277de9486447af7b3604a69b8d9d8b7889d)
         expected = '5HvLFPDVgFZRK9cd4C5jcWki5Skz6fmKqi1GQJf5ZoMofid2Dty'
         self.assertEqual(pk.wif(compressed=False, testnet=False), expected)
-        pk = PrivateKey(
-            0x1cca23de92fd1862fb5b76e5f4f50eb082165e5191e116c18ed1a6b24be6a53f)
+        pk = PrivateKey(0x1cca23de92fd1862fb5b76e5f4f50eb082165e5191e116c18ed1a6b24be6a53f)
         expected = 'cNYfWuhDpbNM1JWc3c6JTrtrFVxU4AGhUKgw5f93NP2QaBqmxKkg'
         self.assertEqual(pk.wif(compressed=True, testnet=True), expected)

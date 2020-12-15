@@ -9,16 +9,22 @@ from helper import (
     read_varint,
 )
 from op import (
+    op_equal,
+    op_hash160,
+    op_verify,
     OP_CODE_FUNCTIONS,
     OP_CODE_NAMES,
 )
 
 
-# tag::source1[]
 def p2pkh_script(h160):
     '''Takes a hash160 and returns the p2pkh ScriptPubKey'''
     return Script([0x76, 0xa9, h160, 0x88, 0xac])
-# end::source1[]
+
+
+def p2sh_script(h160):
+    '''Takes a hash160 and returns the p2sh ScriptPubKey'''
+    return Script([0xa9, h160, 0x87])
 
 
 LOGGER = getLogger(__name__)
@@ -160,14 +166,47 @@ class Script:
                     if not operation(stack):
                         LOGGER.info('bad op: {}'.format(OP_CODE_NAMES[cmd]))
                         return False
+            # tag::source1[]
             else:
-                # add the cmd to the stack
                 stack.append(cmd)
+                if len(cmds) == 3 and cmds[0] == 0xa9 \
+                    and type(cmds[1]) == bytes and len(cmds[1]) == 20 \
+                    and cmds[2] == 0x87:  # <1>
+                    cmds.pop()  # <2>
+                    h160 = cmds.pop()
+                    cmds.pop()
+                    if not op_hash160(stack):  # <3>
+                        return False
+                    stack.append(h160)
+                    if not op_equal(stack):
+                        return False
+                    if not op_verify(stack):  # <4>
+                        LOGGER.info('bad p2sh h160')
+                        return False
+                    redeem_script = encode_varint(len(cmd)) + cmd  # <5>
+                    stream = BytesIO(redeem_script)
+                    cmds.extend(Script.parse(stream).cmds)  # <6>
+                    # end::source1[]
         if len(stack) == 0:
             return False
         if stack.pop() == b'':
             return False
         return True
+
+    def is_p2pkh_script_pubkey(self):
+        '''Returns whether this follows the
+        OP_DUP OP_HASH160 <20 byte hash> OP_EQUALVERIFY OP_CHECKSIG pattern.'''
+        return len(self.cmds) == 5 and self.cmds[0] == 0x76 \
+            and self.cmds[1] == 0xa9 \
+            and type(self.cmds[2]) == bytes and len(self.cmds[2]) == 20 \
+            and self.cmds[3] == 0x88 and self.cmds[4] == 0xac
+
+    def is_p2sh_script_pubkey(self):
+        '''Returns whether this follows the
+        OP_HASH160 <20 byte hash> OP_EQUAL pattern.'''
+        return len(self.cmds) == 3 and self.cmds[0] == 0xa9 \
+            and type(self.cmds[1]) == bytes and len(self.cmds[1]) == 20 \
+            and self.cmds[2] == 0x87
 
 
 class ScriptTest(TestCase):
