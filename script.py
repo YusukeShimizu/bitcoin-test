@@ -166,27 +166,29 @@ class Script:
                     if not operation(stack):
                         LOGGER.info('bad op: {}'.format(OP_CODE_NAMES[cmd]))
                         return False
-            # tag::source1[]
             else:
+                # add the cmd to the stack
                 stack.append(cmd)
                 if len(cmds) == 3 and cmds[0] == 0xa9 \
                     and type(cmds[1]) == bytes and len(cmds[1]) == 20 \
-                    and cmds[2] == 0x87:  # <1>
-                    cmds.pop()  # <2>
+                    and cmds[2] == 0x87:
+                    # we execute the next three opcodes
+                    cmds.pop()
                     h160 = cmds.pop()
                     cmds.pop()
-                    if not op_hash160(stack):  # <3>
+                    if not op_hash160(stack):
                         return False
                     stack.append(h160)
                     if not op_equal(stack):
                         return False
-                    if not op_verify(stack):  # <4>
+                    # final result should be a 1
+                    if not op_verify(stack):
                         LOGGER.info('bad p2sh h160')
                         return False
-                    redeem_script = encode_varint(len(cmd)) + cmd  # <5>
+                    # hashes match! now add the RedeemScript
+                    redeem_script = encode_varint(len(cmd)) + cmd
                     stream = BytesIO(redeem_script)
-                    cmds.extend(Script.parse(stream).cmds)  # <6>
-                    # end::source1[]
+                    cmds.extend(Script.parse(stream).cmds)
         if len(stack) == 0:
             return False
         if stack.pop() == b'':
