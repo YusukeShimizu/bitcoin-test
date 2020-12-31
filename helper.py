@@ -57,8 +57,7 @@ def decode_base58(s):
     combined = num.to_bytes(25, byteorder='big')
     checksum = combined[-4:]
     if hash256(combined[:-4])[:4] != checksum:
-        raise ValueError('bad address: {} {}'.format(
-            checksum, hash256(combined[:-4])[:4]))
+        raise ValueError('bad address: {} {}'.format(checksum, hash256(combined[:-4])[:4]))
     return combined[1:-4]
 
 
@@ -185,36 +184,39 @@ def merkle_parent_level(hashes):
     the length'''
     # if the list has exactly 1 element raise an error
     if len(hashes) == 1:
-        raise ValueError
+        raise RuntimeError('Cannot take a parent level with only 1 item')
     # if the list has an odd number of elements, duplicate the last one
+    # and put it at the end so it has an even number of elements
     if len(hashes) % 2 == 1:
-        # and put it at the end so it has an even number of elements
         hashes.append(hashes[-1])
     # initialize next level
+    parent_level = []
     # loop over every pair (use: for i in range(0, len(hashes), 2))
-    # get the merkle parent of the hashes at index i and i+1
-    # append parent to parent level
+    for i in range(0, len(hashes), 2):
+        # get the merkle parent of the hashes at index i and i+1
+        parent = merkle_parent(hashes[i], hashes[i + 1])
+        # append parent to parent level
+        parent_level.append(parent)
     # return parent level
-    return [merkle_parent(hashes[i], hashes[i+1]) for i in range(0, len(hashes), 2)]
+    return parent_level
 
 
 def merkle_root(hashes):
     '''Takes a list of binary hashes and returns the merkle root
     '''
     # current level starts as hashes
-    current_hashes = hashes
+    current_level = hashes
     # loop until there's exactly 1 element
-    while len(current_hashes) > 1:
-        current_hashes = merkle_parent_level(current_hashes)
-    # current level becomes the merkle parent level
+    while len(current_level) > 1:
+        # current level becomes the merkle parent level
+        current_level = merkle_parent_level(current_level)
     # return the 1st item of the current level
-    return current_hashes.pop()
+    return current_level[0]
 
 
 def bit_field_to_bytes(bit_field):
     if len(bit_field) % 8 != 0:
-        raise RuntimeError(
-            'bit_field does not have a length that is divisible by 8')
+        raise RuntimeError('bit_field does not have a length that is divisible by 8')
     result = bytearray(len(bit_field) // 8)
     for i, bit in enumerate(bit_field):
         byte_index, bit_index = divmod(i, 8)
@@ -223,15 +225,60 @@ def bit_field_to_bytes(bit_field):
     return bytes(result)
 
 
-# tag::source1[]
 def bytes_to_bit_field(some_bytes):
     flag_bits = []
+    # iterate over each byte of flags
     for byte in some_bytes:
+        # iterate over each bit, right-to-left
         for _ in range(8):
+            # add the current bit (byte & 1)
             flag_bits.append(byte & 1)
+            # rightshift the byte 1
             byte >>= 1
     return flag_bits
-# end::source1[]
+
+
+def murmur3(data, seed=0):
+    '''from http://stackoverflow.com/questions/13305290/is-there-a-pure-python-implementation-of-murmurhash'''
+    c1 = 0xcc9e2d51
+    c2 = 0x1b873593
+    length = len(data)
+    h1 = seed
+    roundedEnd = (length & 0xfffffffc)  # round down to 4 byte block
+    for i in range(0, roundedEnd, 4):
+        # little endian load order
+        k1 = (data[i] & 0xff) | ((data[i + 1] & 0xff) << 8) | \
+            ((data[i + 2] & 0xff) << 16) | (data[i + 3] << 24)
+        k1 *= c1
+        k1 = (k1 << 15) | ((k1 & 0xffffffff) >> 17)  # ROTL32(k1,15)
+        k1 *= c2
+        h1 ^= k1
+        h1 = (h1 << 13) | ((h1 & 0xffffffff) >> 19)  # ROTL32(h1,13)
+        h1 = h1 * 5 + 0xe6546b64
+    # tail
+    k1 = 0
+    val = length & 0x03
+    if val == 3:
+        k1 = (data[roundedEnd + 2] & 0xff) << 16
+    # fallthrough
+    if val in [2, 3]:
+        k1 |= (data[roundedEnd + 1] & 0xff) << 8
+    # fallthrough
+    if val in [1, 2, 3]:
+        k1 |= data[roundedEnd] & 0xff
+        k1 *= c1
+        k1 = (k1 << 15) | ((k1 & 0xffffffff) >> 17)  # ROTL32(k1,15)
+        k1 *= c2
+        h1 ^= k1
+    # finalization
+    h1 ^= length
+    # fmix(h1)
+    h1 ^= ((h1 & 0xffffffff) >> 16)
+    h1 *= 0x85ebca6b
+    h1 ^= ((h1 & 0xffffffff) >> 13)
+    h1 *= 0xc2b2ae35
+    h1 ^= ((h1 & 0xffffffff) >> 16)
+    return h1 & 0xffffffff
 
 
 class HelperTest(TestCase):
@@ -278,16 +325,12 @@ class HelperTest(TestCase):
         prev_bits = bytes.fromhex('54d80118')
         time_differential = 302400
         want = bytes.fromhex('00157617')
-        self.assertEqual(calculate_new_bits(
-            prev_bits, time_differential), want)
+        self.assertEqual(calculate_new_bits(prev_bits, time_differential), want)
 
     def test_merkle_parent(self):
-        tx_hash0 = bytes.fromhex(
-            'c117ea8ec828342f4dfb0ad6bd140e03a50720ece40169ee38bdc15d9eb64cf5')
-        tx_hash1 = bytes.fromhex(
-            'c131474164b412e3406696da1ee20ab0fc9bf41c8f05fa8ceea7a08d672d7cc5')
-        want = bytes.fromhex(
-            '8b30c5ba100f6f2e5ad1e2a742e5020491240f8eb514fe97c713c31718ad7ecd')
+        tx_hash0 = bytes.fromhex('c117ea8ec828342f4dfb0ad6bd140e03a50720ece40169ee38bdc15d9eb64cf5')
+        tx_hash1 = bytes.fromhex('c131474164b412e3406696da1ee20ab0fc9bf41c8f05fa8ceea7a08d672d7cc5')
+        want = bytes.fromhex('8b30c5ba100f6f2e5ad1e2a742e5020491240f8eb514fe97c713c31718ad7ecd')
         self.assertEqual(merkle_parent(tx_hash0, tx_hash1), want)
 
     def test_merkle_parent_level(self):
@@ -335,3 +378,9 @@ class HelperTest(TestCase):
         want_hex_hash = 'acbcab8bcc1af95d8d563b77d24c3d19b18f1486383d75a5085c4e86c86beed6'
         want_hash = bytes.fromhex(want_hex_hash)
         self.assertEqual(merkle_root(tx_hashes), want_hash)
+
+    def test_bit_field_to_bytes(self):
+        bit_field = [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0]
+        want = '4000600a080000010940'
+        self.assertEqual(bit_field_to_bytes(bit_field).hex(), want)
+        self.assertEqual(bytes_to_bit_field(bytes.fromhex(want)), bit_field)
